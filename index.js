@@ -20,6 +20,7 @@ var youtubeplaylist = require('./plugins/youtubeplaylist');
 var youtube = require('./plugins/youtube');
 var transcode = require('./plugins/transcode');
 var subtitles = require('./plugins/subtitles');
+var acestream = require('./plugins/acestream');
 
 if (opts.help) {
   return console.log([
@@ -280,6 +281,7 @@ player.use(function(ctx, next) {
 });
 
 player.use(directories);
+player.use(acestream);
 player.use(torrent);
 player.use(localfile);
 player.use(youtubeplaylist);
