@@ -43,19 +43,19 @@ var torrent = function(ctx, next) {
     };
 
     engine.on('verify', function() {
-      console.log('verify');
+      debug('verify');
       verified++;
       engine.swarm.piecesGot += 1;
     });
 
     engine.on('invalid-piece', function() {
-      console.log('invalidpiece');
+      debug('invalidpiece');
       invalid++;
     });
 
     var onready = function() {
       //mostrar algo ya que el motor ya inicio
-      console.log('We are ready');
+      debug('We are ready');
     };
     if (engine.torrent) onready();
     else engine.on('ready', onready);
@@ -69,10 +69,10 @@ var torrent = function(ctx, next) {
       debug('started webserver on address %s using port %s', ip, engine.server.address().port);
       var filename = engine.server.index.name.split('/').pop().replace(/\{|\}/g, '');
       var filelength = engine.server.index.length;
-      console.log(util.format("(%d bytes) %s", filelength, filename));
+      debug(util.format("(%d bytes) %s", filelength, filename));
       var updateStatus = function(){
         var unchoked = engine.swarm.wires.filter(active);
-        console.log(util.format("Peers: %d/%d; Speed: %d KB/s; Downloaded: %d MB",unchoked.length, wires.length, (swarm.downloadSpeed()/1024).toFixed(2), (swarm.downloaded/1024/1024).toFixed(2)));
+        debug(util.format("Peers: %d/%d; Speed: %d KB/s; Downloaded: %d MB",unchoked.length, wires.length, (swarm.downloadSpeed()/1024).toFixed(2), (swarm.downloaded/1024/1024).toFixed(2)));
       };
 
       interval = setInterval(updateStatus,250);

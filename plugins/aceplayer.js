@@ -7,7 +7,7 @@ var util = require("util"),
   net = require("net"),
   qs =  require('querystring'),
   cp = require('child_process');
-//var debug = require('debug')('acePlayer');
+var debug = require('debug')('aceplayer');
 
 /**
  * This will initialize aceplayer including starting process and establishing socket connection
@@ -126,21 +126,21 @@ acePlayer.prototype._startAceProcess = function startAceProcess(cb) {
   }
   var spawnErr = null;
   this._aceProcess.stdout.on('data', function(data) {
-    console.log('stdout: ' + data);
+    debug('stdout: ' + data);
   }.bind(this));
   this._aceProcess.stderr.on('data', function(data) {
-    console.log('stdout: ' + data);
+    debug('stdout: ' + data);
   }.bind(this));
   this._aceProcess.on('error', function(err) {
     spawnErr = err;
-    console.log('Error starting process : ' + err);
+    debug('Error starting process : ' + err);
   }.bind(this));
   this._aceProcess.on('close', function(code, signal) {
-    console.log('Closing code: ' + code);
+    debug('Closing code: ' + code);
     this._aceProcess = null;
   }.bind(this));
   this._aceProcess.on('exit', function(code, signal) {
-    console.log('Exit code: ' + code);
+    debug('Exit code: ' + code);
     this._aceProcess = null;
   }.bind(this));
   setTimeout(function() {
@@ -153,18 +153,18 @@ acePlayer.prototype._startAceProcess = function startAceProcess(cb) {
 //os.platform() : 'win32'
 //os.platform() : 'sunos'
 acePlayer.prototype._endAceProcess = function endAceProcess() {
-  console.log("Killing processes");
+  debug("Killing processes");
   if (this._aceProcess) {
     try {
       this._aceProcess.kill(); //TRY sending SIGTERM
       //this._aceProcess.kill('SIGHUP'); //TRY sending SIGHUP
-      console.log("SIGTERM SENT!!!")
+      debug("SIGTERM SENT!!!")
     } catch (ex) {
-      console.log("Error sending kill command", ex)
+      console.error("Error sending kill command", ex)
     }
   } else {
     //If process was already running the spawn would have just closed
-    //console.log("Nothing to kill!!!");
+    //debug("Nothing to kill!!!");
     //return;
   }
   switch (os.platform()) {
@@ -172,10 +172,10 @@ acePlayer.prototype._endAceProcess = function endAceProcess() {
       //var killCmd = "taskkill /F /PID " + this._aceProcess.pid + " /T";
       var killCmd = "taskkill /F /IM ace_engine.exe /T";
       cp.exec(killCmd, function (err, stdout, stderr) {
-        console.log('stdout: ' + stdout);
-        console.log('stderr: ' + stderr);
+        debug('stdout: ' + stdout);
+        debug('stderr: ' + stderr);
         if(err !== null) {
-          console.log('exec error: ' + err);
+          debug('exec error: ' + err);
         }
       });
       break;
@@ -185,15 +185,15 @@ acePlayer.prototype._endAceProcess = function endAceProcess() {
       var killCmd = [path.join('/Applications', 'Ace Stream.app', 'Contents', 'Resources', 'Wine.bundle', 'Contents', 'Resources', 'bin', 'wine'),
         path.join('/Applications', 'Ace Stream.app', 'Contents', 'Resources', 'wineprefix', 'drive_c', 'windows', 'system', 'taskkill.exe'), '/f', '/im', 'aceengine.exe'];
       cp.exec(killCmd.join(), function (err, stdout, stderr) {
-        console.log("STDOUT:" + stdout);
-        console.log("STDERR:" + stderr);
+        debug("STDOUT:" + stdout);
+        debug("STDERR:" + stderr);
         if (err !== null) {
           console.error('exec error: ' + err);
         }
       });
       break;
     default:
-      console.log("Platform %s not supported", os.platform());
+      debug(util.format("Platform %s not supported", os.platform()));
       break;
   }
 };
@@ -226,11 +226,11 @@ acePlayer.prototype._getAcePort = function getAcePort(cb) {
 
 acePlayer.prototype._connectPlayer = function(aceIp, acePort) {
   this._socket = net.createConnection(acePort, aceIp, function () {
-    console.log('connected to server!');
+    debug('connected to server!');
     //initialize communication
     this.engine = new aceEngine(this._socket, this._aceApiKey);
     this.engine.hellobg(); //say hello
-    console.log("Initiated awaiting response");
+    debug("Initiated awaiting response");
   }.bind(this));
   this._socket.setNoDelay(true);
   this._socket.setKeepAlive(true, 5000);
@@ -238,7 +238,7 @@ acePlayer.prototype._connectPlayer = function(aceIp, acePort) {
   this._socket.on("data", function (dataBuf) {
     msgBuf = Buffer.concat([msgBuf, dataBuf]);
     var data = msgBuf.toString("utf8");
-    console.log("Received: %s:", data); //TODO: comment this
+    //debug(util.format("Received: %s:", data)); //TODO: comment this
     var idx = 0, initialLength = data.length;
     //Can have multiple commands
     while ((idx = data.indexOf("\r\n")) >= 0) { //wait for additional data
@@ -258,13 +258,13 @@ acePlayer.prototype._connectPlayer = function(aceIp, acePort) {
   }.bind(this));
   this._socket.on("end", function () {
     //TODO: Initialize shutdown
-    console.log("Socket End");
+    debug("Socket End");
     this.emit("end", "connection");
     this._socket = null;
   }.bind(this));
   this._socket.on("close", function (had_error) {
     //TODO: Initialize shutdown
-    console.log("Socket Close");
+    debug("Socket Close");
     if (this._socket) {
       this.emit("end", "connection");
     }
@@ -273,7 +273,7 @@ acePlayer.prototype._connectPlayer = function(aceIp, acePort) {
 };
 
 acePlayer.prototype._handleResponse = function(msg) {
-  console.log("handleResponse: "+msg);
+  debug("handleResponse: "+msg);
   var msgArr = msg.split(" ");
   var comm = msgArr.shift();
   this.msg=msg;
@@ -325,7 +325,7 @@ acePlayer.prototype._handleResponse = function(msg) {
         var video_meta = this.engine.video_meta = JSON.parse(jstr);
         this.engine.video_files =video_meta.files; //jstr.split('\n')[0]
         this.engine.video_count = (video_meta.status === 2) ? video_meta.files.length : video_meta.status; //status = 2,1,0
-        console.log("files:%j", video_meta.files);
+        debug(util.format("files:%j", video_meta.files));
         this.emit("torrent-loaded", this.engine.video_count, this.engine.video_files); //Torrent stream is loaded. Start can be invoked
       } catch (ex) {
         console.error("Error parsing command LOADRESP %s [SHUTTING DOWN]", jstr);
@@ -360,10 +360,10 @@ acePlayer.prototype._handleResponse = function(msg) {
     case "PLAY":
       var myip = this._myIp; //TODO:
       this.engine.video_url=msgArr.shift().replace('127.0.0.1',myip);
-      console.log("Got Link:%s",this.engine.video_url);
+      debug(util.format("Got Link:%s",this.engine.video_url));
       this.engine.video_params=msgArr;
-      if (msgArr.indexOf("stream=1") >= 0) console.log("Live Stream");
-      else console.log("VOD Stream");
+      if (msgArr.indexOf("stream=1") >= 0) debug("Live Stream");
+      else debug("VOD Stream");
       var fname = qs.unescape(this.engine.video_files[this.engine.fileIdx][0]).replace('/','_').replace('\\','_'); //It will try to use decodeURIComponent in the first place, but if that fails it falls back to a safer equivalent that doesn't throw on malformed URLs.
       this.emit("video-ready", this.engine.video_url, fname); //Torrent stream has started. Play or Save can be invoked
       break;
@@ -393,7 +393,7 @@ acePlayer.prototype._handleResponse = function(msg) {
     //  message_id - message code
     //  message_text - message text
     case "INFO":
-      console.log(msg);
+      debug(msg);
       break;
     //SHUTDOWN
     //  TS Engine finished its work
@@ -452,35 +452,35 @@ acePlayer.prototype._processStats = function (statsStr) {
   this.engine.line=" ";
   switch (st) {
     case "idle":
-      console.log("Received command Engine idle");
+      debug("Received command Engine idle");
       break;
     case "starting":
-      console.log("Received command starting TS");
+      debug("Received command starting TS");
       break;
     case "err":
       this.engine.err = "dl";
-      console.log("Received command ERROR!");
+      debug("Received command ERROR!");
       break;
     case "check":
       this.engine.proc=parseInt(statsArr[0]);
-      console.log("Received command check");
+      debug("Received command check");
       break;
     case "prebuf":
       this.engine.proc=parseInt(statsArr[0])+0.1;
       this.engine.line=util.format("Seeds:%s Download:%sKb/s",statsArr[7],statsArr[4]);
       var engine_data = { "action": "Pre-buffering", "percent": statsArr[0]+ "%","download":statsArr[4]+" Kb/s", "upload":statsArr[6]+" Kb/s","seeds":statsArr[7],"total_download":(parseInt(statsArr[9])/(1024*1024)).toString()+'Mb',"total_upload":(parseInt(statsArr[11])/(1024*1024)).toString()+'Mb' };
-      console.log("Received command: %j", engine_data);
+      debug(util.format("Received command: %j", engine_data));
       break;
     case "loading":
-      console.log("Received command loading");
+      debug("Received command loading");
       break;
     case "dl":
       var engine_data = { "action": "Downloading", "percent": statsArr[0]+ "%","download":statsArr[2]+" Kb/s", "upload":statsArr[4]+" Kb/s","seeds":statsArr[5],"total_download":(parseInt(statsArr[7])/(1024*1024)).toString()+'Mb',"total_upload":(parseInt(statsArr[9])/(1024*1024)).toString()+'Mb' };
-      console.log("Received command: %j", engine_data);
+      debug(util.format("Received command: %j", engine_data));
       break;
     case "buf":
       var engine_data = { "action": "Buffering", "percent": statsArr[0]+ "%","download":statsArr[4]+" Kb/s", "upload":statsArr[6]+" Kb/s","seeds":statsArr[7],"total_download":(parseInt(statsArr[9])/(1024*1024)).toString()+'Mb',"total_upload":(parseInt(statsArr[11])/(1024*1024)).toString()+'Mb' };
-      console.log("Received command: %j", engine_data);
+      debug(util.format("Received command: %j", engine_data));
       break;
   }
 };
@@ -490,7 +490,7 @@ function aceEngine(socket, aceApiKey) {
   this._aceApiKey = aceApiKey;
 }
 aceEngine.prototype._sendCommand = function(data) {
-  console.log("Send Command: %s", data);
+  debug(util.format("Send Command: %s", data));
   this._socket.write(data+'\r\n',"utf8");
   //, function(err) {
   //    if (err) {

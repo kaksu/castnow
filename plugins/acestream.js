@@ -26,7 +26,7 @@ var acestream = function(ctx, next) {
     if (aceplayer) aceplayer.shutdown();
   });
   aceplayer.on("error", function(err) {
-    console.log(err);
+    console.error(err);
     if (!video_url) return next(); //Haven't got url.
   });
   aceplayer.on("ready", function() {
@@ -38,7 +38,7 @@ var acestream = function(ctx, next) {
     aceplayer.initVideo(0);
   });
   aceplayer.on("video-ready", function(vurl, fname) {
-    console.log(vurl);
+    debug(vurl);
     video_url = vurl;
     ctx.options.playlist[0] = {
       path: (ctx.options.tomp4) ? vurl : proxyVideo(vurl, ip, port),
