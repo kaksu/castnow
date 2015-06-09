@@ -112,13 +112,13 @@ acePlayer.prototype._startAceProcess = function startAceProcess(cb) {
       //  cmd.push(total_max_upload_rate.toString());
       //}
       //TODO: Should we use spawn???
-      this._aceProcess = cp.exec(cmd.join());
+      this._aceProcess = cp.exec(cmd.join(' '));
       break;
     case "darwin": //osx
       var cmd = [path.join('/Applications', 'Ace Stream.app', 'Contents', 'Resources', 'Wine.bundle', 'Contents', 'Resources', 'bin', 'wine'),
                  path.join('/Applications', 'Ace Stream.app', 'Contents', 'Resources', 'wineprefix', 'drive_c', 'users', 'IGHOR', 'Application Data', 'ACEStream', 'engine', 'aceengine.exe')];
       //TODO: Should we use spawn???
-      this._aceProcess = cp.exec(cmd.join());
+      this._aceProcess = cp.exec(cmd.join(' '));
       break;
     default:
       cb(new Error(util.format("Platform %s not supported", os.platform())));
