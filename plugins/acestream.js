@@ -1,4 +1,5 @@
 var util = require("util");
+var http = require("http");
 var grabOpts = require('../utils/grab-opts');
 var debug = require('debug')('castnow:acestream');
 var AcePlayer = require("./aceplayer.js");
