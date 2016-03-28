@@ -1,9 +1,15 @@
 # castnow
 
-castnow is commandline utility which can be used to playback media files on
-your chromecast device. It supports playback of local video files, youtube
-clips, videos on the web and torrents. You can also re-attach a running
-playback session.
+castnow is a command-line utility that can be used to play back media files on
+your Chromecast device. It supports playback of local video files, videos on the web and torrents.
+You can also re-attach a running playback session \(this sentence should belong somewhere else).
+
+### interested in being a castnow maintainer?
+
+I currently don't have that much time to maintain this project and have also lost some interest (to be honest).
+Main reason is that we have had a new TV for a few months that supports casting directly to it using
+DLNA \(you may wanna checkout [dlnacast](https://github.com/xat/dlnacast)).
+Feel free to contact me \( [simon@sope.io](simon@sope.io) ) if you want to be added as a maintainer to castnow.
 
 ### usage
 
@@ -18,57 +24,58 @@ castnow ./mydirectory/
 // playback 3 videos after each other
 castnow video1.mp4 video2.mp4 video3.mp4
 
-// start playback of some mp4 file over the web
+// start playback of an mp4 file over the web
 castnow http://commondatastorage.googleapis.com/gtv-videos-bucket/ED_1280.mp4
 
-// start playback of some youtube clip
-castnow https://www.youtube.com/watch?v=pcVRrlmpcWk
-
-// playback some youtube playlist
-castnow https://www.youtube.com/playlist?list=PLrIJmi5XabBPNDJ_YyC-KNa_cZ6SwTOYC
-
-// start playback of some video over torrent
+// start playback of a video over torrent
 castnow <url-to-torrent-file OR magnet>
 
-// start playback of some video over torrent, with local subtitles
+// start playback of a video over torrent with local subtitles
 castnow <url-to-torrent-file OR magnet> --subtitles </local/path/to/subtitles.srt>
 
-// transcode some other videoformat to mp4 while playback (requires ffmpeg)
+// transcode some other video format to mp4 while playback (requires ffmpeg)
 castnow ./myvideo.avi --tomp4
 
-// re-attach to an currently running playback session
+// re-attach to a currently running playback session
 castnow
 
 ```
 
 ### options
 
-* `--tomp4` Transcode a video file to mp4 while playback. This option requires
+* `--tomp4` Transcode a video file to mp4 during playback. This option requires
 ffmpeg to be installed on your computer. The play / pause controls are currently
 not supported in transcode mode.
 
-* `--device "my chromecast"` If you have more than one chromecast in your network
+* `--device "my chromecast"` If you have more than one Chromecast on your network,
 use the `--device` option to specify the device on which you want to start casting.
-Otherwise castnow will just use the first device it finds in the network.
+Otherwise, castnow will just use the first device it finds in the network.
 
-* `--address <IP>` The IP address of your chromecast. This will skip the MDNS scan.
+* `--address 192.168.1.4` The IP address or hostname of your chromecast. This will skip
+the MDNS scan.
 
-* `--subtitles <path/URL>` This can be a path or URL to a vtt or srt file which
+* `--subtitles <path/URL>` This can be a path or URL to a vtt or srt file that
 contains subtitles.
 
-* `--myip <IP>` Your main IP address (useful if you have multiple network adapters)
+* `--subtitle-scale 1.5` Scaling factor for the size of the subtitle font. Default is 1.0.
+
+* `--subtitle-color #FFFFFFFF` Foreground RGBA color of the subtitle font.
+
+* `--myip 192.168.1.8` Your main IP address \(useful if you have multiple network adapters)
 
 * `--quiet` Hide the player timeline.
 
-* `--peerflix-* <val>` Pass options to peerflix.
+* `--peerflix-<option> <argument>` Pass options to peerflix.
 
-* `--ffmpeg-* <val>` Pass options to ffmpeg.
+* `--ffmpeg-<option> <argument>` Pass options to ffmpeg.
 
-* `--type <val>` Explicity set the mime-type of the first item in the playlist (e.g. 'video/mp4').
+* `--type <type>` Explicity set the mime-type of the first item in the playlist (e.g. 'video/mp4').
 
-* `--seek <val>` Seek to the specified time on start using the format hh:mm:ss or mm:ss.
+* `--seek <hh:mm:ss>` Seek to the specified time on start using the format hh:mm:ss or mm:ss.
 
-* `--bypass-srt-encoding` Disable automatic UTF8 encoding of SRT subtitles.
+* `--bypass-srt-encoding` Disable automatic UTF-8 encoding of SRT subtitles.
+
+* `--loop` Play the list of files over and over in a loop, forever.
 
 * `--help` Display help message.
 
@@ -77,7 +84,7 @@ contains subtitles.
 ```
 
 space   // toggle between play and pause
-m       // toggle between mute and unmute
+m       // toggle mute
 up      // volume up
 down    // volume down
 left    // seek backward (keep pressed / multiple press for faster seek)
@@ -88,21 +95,31 @@ q       // quit
 
 ```
 
+### YouTube support
+
+We had to drop direct YouTube support for now since google changed the chromecast YouTube API.
+However, there is a nice workaround in combination with the tool [youtube-dl](https://github.com/rg3/youtube-dl):
+
+`youtube-dl -o - https://youtu.be/BaW_jenozKc | castnow --quiet -`
+
+Thanks to [trulex](https://github.com/trulex) for pointing that out.
+
 ### reporting bugs/issues
 
-Please always append the debug output to your issues. You can enable the debug messages by setting the
-DEBUG ENV variable before running the castnow-command like this: `DEBUG=castnow* castnow ./myvideo.mp4`.
-Some problems are also already addressed in our wiki https://github.com/xat/castnow/wiki.
+Please include the debug output in your issues. You can enable the debug messages by setting the
+DEBUG environment variable before running the castnow command like this: `DEBUG=castnow* castnow ./myvideo.mp4`.
+Some problems have already been addressed in our wiki https://github.com/xat/castnow/wiki.
 
 ### installation
 
 `npm install castnow -g`
 
-### contributers
+### contributors
 
 * [tooryx](https://github.com/tooryx)
 * [przemyslawpluta](https://github.com/przemyslawpluta)
 
 ## License
 Copyright (c) 2015 Simon Kusterer
+
 Licensed under the MIT license.

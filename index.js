@@ -16,11 +16,10 @@ var noop = function() {};
 var directories = require('./plugins/directories');
 var localfile = require('./plugins/localfile');
 var torrent = require('./plugins/torrent');
-var youtubeplaylist = require('./plugins/youtubeplaylist');
-var youtube = require('./plugins/youtube');
 var transcode = require('./plugins/transcode');
 var subtitles = require('./plugins/subtitles');
 var acestream = require('./plugins/acestream');
+var stdin = require('./plugins/stdin');
 
 if (opts.help) {
   return console.log([
@@ -28,25 +27,28 @@ if (opts.help) {
     'Usage: castnow [<media>, <media>, ...] [OPTIONS]',
     '',
     'Option                  Meaning',
-    '--tomp4                 Convert file to mp4 while playback',
-    '--device <name>         The name of the chromecast device that should be used',
-    '--address <ip>          The IP address of your chromecast device',
+    '--tomp4                 Convert file to mp4 during playback',
+    '--device <name>         The name of the Chromecast device that should be used',
+    '--address <ip>          The IP address or hostname of your Chromecast device',
     '--subtitles <path/url>  Path or URL to an SRT or VTT file',
-    '--myip <ip>             Your main IP address',
-    '--quiet               No output',
+    '--subtitle-scale <scale> Subtitle font scale',
+    '--subtitle-color <color> Subtitle font RGBA color',
+    '--myip <ip>             Your local IP address',
+    '--quiet                 No output',
     '--peerflix-* <value>    Pass options to peerflix',
     '--ffmpeg-* <value>      Pass options to ffmpeg',
-    '--type <val>            Explicity set the mime-type (e.g. "video/mp4")',
-    '--bypass-srt-encoding   Disable automatic UTF8 encoding of SRT subtitles',
-    '--seek <value>          Seek to the specified time on start using the format hh:mm:ss or mm:ss',
+    '--type <type>           Explicitly set the mime-type (e.g. "video/mp4")',
+    '--bypass-srt-encoding   Disable automatic UTF-8 encoding of SRT subtitles',
+    '--seek <hh:mm:ss>       Seek to the specified time on start using the format hh:mm:ss or mm:ss',
+    '--loop                  Loop over playlist, or file, forever',
 
     '--help                  This help screen',
     '',
     'Player controls',
     '',
-    'Key                     Meaning',
+    'Key                     Action',
     'space                   Toggle between play and pause',
-    'm                       Toggle between mute and unmute',
+    'm                       Toggle mute',
     'up                      Volume Up',
     'down                    Volume Down',
     'left                    Seek backward',
@@ -163,7 +165,8 @@ var ctrl = function(err, p, ctx) {
       ui.showLabels('state');
       debug('loading next in playlist: %o', playlist[0]);
       p.load(playlist[0], noop);
-      playlist.shift();
+      var file = playlist.shift();
+      if (ctx.options.loop) playlist.push(file)
     });
   };
 
@@ -188,8 +191,8 @@ var ctrl = function(err, p, ctx) {
 
     // toggle between mute / unmute
     m: function() {
-      if(!volume) { 
-        return; 
+      if(!volume) {
+        return;
       } else if (volume.muted) {
         p.unmute(function(err, status) {
           if (err) return;
@@ -284,15 +287,14 @@ player.use(directories);
 player.use(acestream);
 player.use(torrent);
 player.use(localfile);
-player.use(youtubeplaylist);
-player.use(youtube);
 player.use(transcode);
 player.use(subtitles);
 
 player.use(function(ctx, next) {
   if (ctx.mode !== 'launch') return next();
   ctx.options = xtend(ctx.options, ctx.options.playlist[0]);
-  ctx.options.playlist.shift();
+  var file = ctx.options.playlist.shift();
+  if (ctx.options.loop) ctx.options.playlist.push(file);
   next();
 });
 
