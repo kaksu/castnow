@@ -14,7 +14,7 @@ var debug = require('debug')('aceplayer');
  * This is raise "ready" or "error"
  * @param options
  */
-function acePlayer(options) {
+function AcePlayer(options) {
   options || (options = {});
   this._aceIp=options.aceIp||"127.0.0.1";
   this._myIp=options.myIp||this._aceIp;
@@ -22,31 +22,25 @@ function acePlayer(options) {
   this._aceApiKey=options.aceApiKey||"n51LvQoTlJzNGaFxseRK-uvnvX-sD4Vm5Axwmc4UcoD-jruxmKsuJaH0eVgE";
   this._aceInstallPath=options.aceInstallPath||"";
   this._socket = null;
-  events.EventEmitter.call(this);
-  process.nextTick(function() {
-    this._startAceProcess(function(err) {
-      if (err) {
-        console.error('error starting ace player: %o', err);
-        this.emit("error",err);
-        return;
-      }
-      this._getAcePort(function(err, acePort) {
-        if (err) {
-          console.error('error getting ace player port: %o', err);
-          this.emit("error",err);
-          return;
-        }
-        this._connectPlayer(this._aceIp, acePort);
-      }.bind(this));
 
-    }.bind(this));
+  events.EventEmitter.call(this);
+  if (options.skipLaunch) {
+    this._connect();
+    return;
+  }
+  this.process = new AceProcess(options, function(err) {
+    if (err) {
+      console.error('error starting ace player: %o', err);
+      this.emit("error",err);
+      return;
+    }
+    this._connect();
   }.bind(this));
 }
 
-util.inherits(acePlayer, events.EventEmitter);
+util.inherits(AcePlayer, events.EventEmitter);
 
-module.exports = acePlayer;
-
+module.exports = AcePlayer;
 
 /**
  * Load torrent
@@ -54,7 +48,7 @@ module.exports = acePlayer;
  * @param mode
  * @param torrent
  */
-acePlayer.prototype.loadTorrent = function(mode, torrent) {
+AcePlayer.prototype.loadTorrent = function(mode, torrent) {
   this.engine.load(mode, torrent);
 };
 
@@ -63,14 +57,14 @@ acePlayer.prototype.loadTorrent = function(mode, torrent) {
  * This is raise "video-ready"
  * @param index
  */
-acePlayer.prototype.initVideo = function(index) {
+AcePlayer.prototype.initVideo = function(index) {
   this.engine.start(index);
 };
 
 /**
  * Shuts down player
  */
-acePlayer.prototype.shutdown = function() {
+AcePlayer.prototype.shutdown = function() {
   if (this._socket) {
     if (this.engine) {
       this.engine.stop();
@@ -79,130 +73,33 @@ acePlayer.prototype.shutdown = function() {
     this._socket.end();
     this._socket.destroy();
   }
+  this.removeAllListeners();
   this._socket = null;
-  this._endAceProcess();
+  if (this.process) this.process.kill();
 };
 
 /**
  * Stop running video
  */
-acePlayer.prototype.stop = function() {
+AcePlayer.prototype.stop = function() {
   if (this.engine) this.engine.stop();
 };
 
-//os.platform() : 'linux'
-//os.platform() : 'darwin'
-//os.platform() : 'win32'
-//os.platform() : 'sunos'
-acePlayer.prototype._startAceProcess = function startAceProcess(cb) {
-  switch (os.platform()) {
-    case "win32":
-      var aceBin = path.join(this._aceInstallPath, "engine", "ace_engine.exe");
-      this._aceProcess = cp.spawn(aceBin);
-      break;
-    case "linux": //linux
-      var aceBin = path.join(this._aceInstallPath, 'acestreamengine');
-      var cmd = [aceBin, '--client-console', '--lib-path', this._aceInstallPath];
-      //if (total_max_download_rate) {
-      //  cmd.push('--download-limit');
-      //  cmd.push(total_max_download_rate.toString());
-      //}
-      //if (total_max_upload_rate) {
-      //  cmd.push('--upload-limit');
-      //  cmd.push(total_max_upload_rate.toString());
-      //}
-      //TODO: Should we use spawn???
-      this._aceProcess = cp.exec(cmd.join(' '));
-      break;
-    case "darwin": //osx
-      var cmd = [path.join('/Applications', 'Ace Stream.app', 'Contents', 'Resources', 'Wine.bundle', 'Contents', 'Resources', 'bin', 'wine'),
-                 path.join('/Applications', 'Ace Stream.app', 'Contents', 'Resources', 'wineprefix', 'drive_c', 'users', 'IGHOR', 'Application Data', 'ACEStream', 'engine', 'aceengine.exe')];
-      //TODO: Should we use spawn???
-      this._aceProcess = cp.exec(cmd.join(' '));
-      break;
-    default:
-      cb(new Error(util.format("Platform %s not supported", os.platform())));
+AcePlayer.prototype._connect = function connect() {
+  this._getAcePort(function(err, acePort) {
+    if (err) {
+      console.error('error getting ace player port: %o', err);
+      this.emit("error",err);
       return;
-  }
-  var spawnErr = null;
-  this._aceProcess.stdout.on('data', function(data) {
-    debug('stdout: ' + data);
-  }.bind(this));
-  this._aceProcess.stderr.on('data', function(data) {
-    debug('stdout: ' + data);
-  }.bind(this));
-  this._aceProcess.on('error', function(err) {
-    spawnErr = err;
-    debug('Error starting process : ' + err);
-  }.bind(this));
-  this._aceProcess.on('close', function(code, signal) {
-    debug('Closing code: ' + code);
-    this._aceProcess = null;
-  }.bind(this));
-  this._aceProcess.on('exit', function(code, signal) {
-    debug('Exit code: ' + code);
-    this._aceProcess = null;
-  }.bind(this));
-  setTimeout(function() {
-    cb(spawnErr);
-  }.bind(this), 8000);
-};
-
-//os.platform() : 'linux'
-//os.platform() : 'darwin'
-//os.platform() : 'win32'
-//os.platform() : 'sunos'
-acePlayer.prototype._endAceProcess = function endAceProcess() {
-  debug("Killing processes");
-  if (this._aceProcess) {
-    try {
-      this._aceProcess.kill(); //TRY sending SIGTERM
-      //this._aceProcess.kill('SIGHUP'); //TRY sending SIGHUP
-      debug("SIGTERM SENT!!!")
-    } catch (ex) {
-      console.error("Error sending kill command", ex)
     }
-  } else {
-    //If process was already running the spawn would have just closed
-    //debug("Nothing to kill!!!");
-    //return;
-  }
-  switch (os.platform()) {
-    case "win32":
-      //var killCmd = "taskkill /F /PID " + this._aceProcess.pid + " /T";
-      var killCmd = "taskkill /F /IM ace_engine.exe /T";
-      cp.exec(killCmd, function (err, stdout, stderr) {
-        debug('stdout: ' + stdout);
-        debug('stderr: ' + stderr);
-        if(err !== null) {
-          debug('exec error: ' + err);
-        }
-      });
-      break;
-    case "linux": //linux
-      break;
-    case "darwin": //osx
-      var killCmd = [path.join('/Applications', 'Ace Stream.app', 'Contents', 'Resources', 'Wine.bundle', 'Contents', 'Resources', 'bin', 'wine'),
-        path.join('/Applications', 'Ace Stream.app', 'Contents', 'Resources', 'wineprefix', 'drive_c', 'windows', 'system', 'taskkill.exe'), '/f', '/im', 'aceengine.exe'];
-      cp.exec(killCmd.join(), function (err, stdout, stderr) {
-        debug("STDOUT:" + stdout);
-        debug("STDERR:" + stderr);
-        if (err !== null) {
-          console.error('exec error: ' + err);
-        }
-      });
-      break;
-    default:
-      debug(util.format("Platform %s not supported", os.platform()));
-      break;
-  }
+    this._connectPlayer(this._aceIp, acePort);
+  }.bind(this));
 };
-
 //os.platform() : 'linux'
 //os.platform() : 'darwin'
 //os.platform() : 'win32'
 //os.platform() : 'sunos'
-acePlayer.prototype._getAcePort = function getAcePort(cb) {
+AcePlayer.prototype._getAcePort = function getAcePort(cb) {
   switch (os.platform()) {
     case "win32":
       var pfile = path.join(this._aceInstallPath, "engine", 'acestream.port');
@@ -224,11 +121,11 @@ acePlayer.prototype._getAcePort = function getAcePort(cb) {
   }
 };
 
-acePlayer.prototype._connectPlayer = function(aceIp, acePort) {
+AcePlayer.prototype._connectPlayer = function(aceIp, acePort) {
   this._socket = net.createConnection(acePort, aceIp, function () {
     debug('connected to server!');
     //initialize communication
-    this.engine = new aceEngine(this._socket, this._aceApiKey);
+    this.engine = new AceEngine(this._socket, this._aceApiKey);
     this.engine.hellobg(); //say hello
     debug("Initiated awaiting response");
   }.bind(this));
@@ -260,6 +157,7 @@ acePlayer.prototype._connectPlayer = function(aceIp, acePort) {
     //TODO: Initialize shutdown
     debug("Socket End");
     this.emit("end", "connection");
+    this.removeAllListeners();
     this._socket = null;
   }.bind(this));
   this._socket.on("close", function (had_error) {
@@ -268,11 +166,12 @@ acePlayer.prototype._connectPlayer = function(aceIp, acePort) {
     if (this._socket) {
       this.emit("end", "connection");
     }
+    this.removeAllListeners();
     this._socket = null;
   }.bind(this));
 };
 
-acePlayer.prototype._handleResponse = function(msg) {
+AcePlayer.prototype._handleResponse = function(msg) {
   debug("handleResponse: "+msg);
   var msgArr = msg.split(" ");
   var comm = msgArr.shift();
@@ -408,7 +307,7 @@ acePlayer.prototype._handleResponse = function(msg) {
  * @param statsStr
  * @private
  */
-acePlayer.prototype._processStats = function (statsStr) {
+AcePlayer.prototype._processStats = function (statsStr) {
   //If the main content is being played:
   //  STATUS main:status_string
   //
@@ -485,11 +384,130 @@ acePlayer.prototype._processStats = function (statsStr) {
   }
 };
 
-function aceEngine(socket, aceApiKey) {
+function AceProcess(options, cb) {
+  this._installPath = options.aceInstallPath||"";
+  this._waitTimeMS = options.waitTimeMS||8000;
+  this._process = null;
+  process.nextTick(function() {
+    this._launch(cb);
+  }.bind(this));
+}
+
+AcePlayer.AceProcess = AceProcess;
+
+//os.platform() : 'linux'
+//os.platform() : 'darwin'
+//os.platform() : 'win32'
+//os.platform() : 'sunos'
+AceProcess.prototype._launch = function launchAceProcess(cb) {
+  switch (os.platform()) {
+    case "win32":
+      var aceBin = path.join(this._installPath, "engine", "ace_engine.exe");
+      this._process = cp.spawn(aceBin);
+      break;
+    case "linux": //linux
+      var aceBin = path.join(this._installPath, 'acestreamengine');
+      var cmd = [aceBin, '--client-console', '--lib-path', this._installPath];
+      //if (total_max_download_rate) {
+      //  cmd.push('--download-limit');
+      //  cmd.push(total_max_download_rate.toString());
+      //}
+      //if (total_max_upload_rate) {
+      //  cmd.push('--upload-limit');
+      //  cmd.push(total_max_upload_rate.toString());
+      //}
+      //TODO: Should we use spawn???
+      this._process = cp.exec(cmd.join(' '));
+      break;
+    case "darwin": //osx
+      var cmd = [path.join('/Applications', 'Ace Stream.app', 'Contents', 'Resources', 'Wine.bundle', 'Contents', 'Resources', 'bin', 'wine'),
+                 path.join('/Applications', 'Ace Stream.app', 'Contents', 'Resources', 'wineprefix', 'drive_c', 'users', 'IGHOR', 'Application Data', 'ACEStream', 'engine', 'aceengine.exe')];
+      //TODO: Should we use spawn???
+      this._process = cp.exec(cmd.join(' '));
+      break;
+    default:
+      cb(new Error(util.format("Platform %s not supported", os.platform())));
+      return;
+  }
+  var spawnErr = null;
+  this._process.stdout.on('data', function(data) {
+    debug('stdout: ' + data);
+  }.bind(this));
+  this._process.stderr.on('data', function(data) {
+    debug('stdout: ' + data);
+  }.bind(this));
+  this._process.on('error', function(err) {
+    spawnErr = err;
+    debug('Error starting process : ' + err);
+  }.bind(this));
+  this._process.on('close', function(code, signal) {
+    debug('Closing code: ' + code);
+    this._process = null;
+  }.bind(this));
+  this._process.on('exit', function(code, signal) {
+    debug('Exit code: ' + code);
+    this._process = null;
+  }.bind(this));
+  setTimeout(function() {
+    cb(spawnErr);
+  }.bind(this), this._waitTimeMS);
+};
+
+//os.platform() : 'linux'
+//os.platform() : 'darwin'
+//os.platform() : 'win32'
+//os.platform() : 'sunos'
+AceProcess.prototype.kill = function killAceProcess() {
+  debug("Killing processes");
+  if (this._process) {
+    try {
+      this._process.kill(); //TRY sending SIGTERM
+      //this._process.kill('SIGHUP'); //TRY sending SIGHUP
+      debug("SIGTERM SENT!!!")
+    } catch (ex) {
+      console.error("Error sending kill command", ex)
+    }
+  } else {
+    //If process was already running the spawn would have just closed
+    //debug("Nothing to kill!!!");
+    //return;
+  }
+  switch (os.platform()) {
+    case "win32":
+      //var killCmd = "taskkill /F /PID " + this._process.pid + " /T";
+      var killCmd = "taskkill /F /IM ace_engine.exe /T";
+      cp.exec(killCmd, function (err, stdout, stderr) {
+        debug('stdout: ' + stdout);
+        debug('stderr: ' + stderr);
+        if(err !== null) {
+          debug('exec error: ' + err);
+        }
+      });
+      break;
+    case "linux": //linux
+      break;
+    case "darwin": //osx
+      var killCmd = [path.join('/Applications', 'Ace Stream.app', 'Contents', 'Resources', 'Wine.bundle', 'Contents', 'Resources', 'bin', 'wine'),
+        path.join('/Applications', 'Ace Stream.app', 'Contents', 'Resources', 'wineprefix', 'drive_c', 'windows', 'system', 'taskkill.exe'), '/f', '/im', 'aceengine.exe'];
+      cp.exec(killCmd.join(), function (err, stdout, stderr) {
+        debug("STDOUT:" + stdout);
+        debug("STDERR:" + stderr);
+        if (err !== null) {
+          console.error('exec error: ' + err);
+        }
+      });
+      break;
+    default:
+      debug(util.format("Platform %s not supported", os.platform()));
+      break;
+  }
+};
+
+function AceEngine(socket, aceApiKey) {
   this._socket = socket;
   this._aceApiKey = aceApiKey;
 }
-aceEngine.prototype._sendCommand = function(data) {
+AceEngine.prototype._sendCommand = function(data) {
   debug(util.format("Send Command: %s", data));
   this._socket.write(data+'\r\n',"utf8");
   //, function(err) {
@@ -504,14 +522,14 @@ aceEngine.prototype._sendCommand = function(data) {
  * This command must be sent by client right after establishing tcp-connection with TS Engine.
  * Connection with TS Engine is successful, if client receives from TS Engine response to "handshake" - command HELLOTS
  */
-aceEngine.prototype.hellobg = function() {
+AceEngine.prototype.hellobg = function() {
   this._sendCommand("HELLOBG");
 };
 /**
  * Informs TS Engine that client is ready to receive outgoing commands
  * @param key
  */
-aceEngine.prototype.ready = function(key) {
+AceEngine.prototype.ready = function(key) {
   var ready = 'READY';
   if (key) {
     var shasum = crypto.createHash("sha1");
@@ -528,7 +546,7 @@ aceEngine.prototype.ready = function(key) {
  * @param mode PID or TORRENT
  * @param torrent CHID -> [ACESTREAMID or .torrent file/url]
  */
-aceEngine.prototype.load = function(mode, torrent) {
+AceEngine.prototype.load = function(mode, torrent) {
   //LOAD TORRENT <torrent_url> <developer_id> <affiliate_id> <zone_id>
   //LOAD INFOHASH <torrent_infohash> <developer_id> <affiliate_id> <zone_id>
   //LOAD PID <player_id>
@@ -558,7 +576,7 @@ aceEngine.prototype.load = function(mode, torrent) {
  *
  * @param index
  */
-aceEngine.prototype.start = function(index) {
+AceEngine.prototype.start = function(index) {
   //START TORRENT <torrent_url> <file_indexes> <developer_id> <affiliate_id> <zone_id>
   //START INFOHASH <torrent_infohash> <file_indexes> <developer_id> <affiliate_id> <zone_id>
   //START PID <player_id> <file_indexes>
@@ -590,7 +608,7 @@ aceEngine.prototype.start = function(index) {
  * @param file
  * @param filename
  */
-aceEngine.prototype.save = function(file, filename) {
+AceEngine.prototype.save = function(file, filename) {
   var fname = qs.unescape(filename).replace('/','_').replace('\\','_'); //It will try to use decodeURIComponent in the first place, but if that fails it falls back to a safer equivalent that doesn't throw on malformed URLs.
   var cmd=util.format("SAVE %s path=%s", file.join(), qs.escape(fname)); //can use encodeURIComponent
   this._sendCommand(cmd);
@@ -598,7 +616,7 @@ aceEngine.prototype.save = function(file, filename) {
 /**
  * Getting code of the player through a set of parameters. This command is a synchronous command (see below). In response player's code or empty string (if player's code can't be received) is sent.
  */
-aceEngine.prototype.getpid = function() {
+AceEngine.prototype.getpid = function() {
   var infohash = this.video_meta.infohash;
   var cmd = util.format("GETPID %s 0 0 0", infohash);
   this._sendCommand(cmd);
@@ -610,7 +628,7 @@ aceEngine.prototype.getpid = function() {
  * duration - duration in milliseconds
  * @param duration
  */
-aceEngine.prototype.dur = function(duration) {
+AceEngine.prototype.dur = function(duration) {
   var video_url = this.video_url;
   var cmd = util.format("DUR %s %s", video_url, duration);
   this._sendCommand(cmd);
@@ -628,7 +646,7 @@ aceEngine.prototype.dur = function(duration) {
  * 100 - 100% of video has been played
  * @param event
  */
-aceEngine.prototype.playback = function(event) {
+AceEngine.prototype.playback = function(event) {
   var video_url = this.video_url;
   var cmd = util.format("PLAYBACK %s %d", video_url, event);
   this._sendCommand(cmd);
@@ -636,19 +654,19 @@ aceEngine.prototype.playback = function(event) {
 /**
  *  Send user data
  */
-aceEngine.prototype.userdata = function() {
+AceEngine.prototype.userdata = function() {
   this._sendCommand('USERDATA [{"gender": 1}, {"age": 4}]');
 };
 /**
  * Stop loading file that is being loaded at this moment.
  */
-aceEngine.prototype.stop = function() {
+AceEngine.prototype.stop = function() {
   this._sendCommand("STOP");
 };
 /**
  * Close connection with client.
  */
-aceEngine.prototype.shutdown = function() {
+AceEngine.prototype.shutdown = function() {
   this._sendCommand("SHUTDOWN");
 };
 //>> - messages from client to TS Engine
