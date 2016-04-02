@@ -407,7 +407,8 @@ AceProcess.prototype._launch = function launchAceProcess(cb) {
       break;
     case "linux": //linux
       var aceBin = path.join(this._installPath, 'acestreamengine');
-      var cmd = [aceBin, '--client-console', '--lib-path', this._installPath];
+      //var cmd = [aceBin, '--client-console', '--lib-path', this._installPath];
+      var cmd = ['--client-console', '--lib-path', this._installPath];
       //if (total_max_download_rate) {
       //  cmd.push('--download-limit');
       //  cmd.push(total_max_download_rate.toString());
@@ -417,7 +418,8 @@ AceProcess.prototype._launch = function launchAceProcess(cb) {
       //  cmd.push(total_max_upload_rate.toString());
       //}
       //TODO: Should we use spawn???
-      this._process = cp.exec(cmd.join(' '));
+      //this._process = cp.exec(cmd.join(' '));
+      this._process = cp.spawn(aceBin, cmd);
       break;
     case "darwin": //osx
       var cmd = [path.join('/Applications', 'Ace Stream.app', 'Contents', 'Resources', 'Wine.bundle', 'Contents', 'Resources', 'bin', 'wine'),
@@ -462,8 +464,12 @@ AceProcess.prototype.kill = function killAceProcess() {
   if (this._process) {
     try {
       this._process.kill(); //TRY sending SIGTERM
-      //this._process.kill('SIGHUP'); //TRY sending SIGHUP
+      //this._process.kill('SIGKILL'); //TRY sending SIGKILL
       debug("SIGTERM SENT!!!")
+      setTimeout(function() {
+        this._process.kill('SIGKILL'); //TRY sending SIGKILL
+        debug("SIGKILL SENT!!!");
+      }.bind(this), 1000);
     } catch (ex) {
       console.error("Error sending kill command", ex)
     }
